@@ -10,16 +10,20 @@
             display: flex;
             gap: 20px;
         }
+        html, body {
+            scrollbar-gutter: stable; /* 스크롤바 공간을 미리 확보해서 레이아웃 밀림 방지 */
+        }
+
         #left-panel, #right-panel {
             padding: 20px;
             min-height: 90vh;
         }
         #left-panel {
-            width: 60%;
+            width: 61%;
             border-right: 1px solid #ccc;
         }
         #right-panel {
-            width: 40%;
+            width: 39%;
         }
         h2 {
             margin-top: 0;
@@ -161,7 +165,7 @@
         }
         .subject-row-actions {
             position: absolute;
-            right: -20px; /* 테이블 경계 밖으로 이동 */
+            right: 10px; /* 절대적 위치 조정 */
             top: 50%;
             transform: translateY(-50%);
         }
@@ -172,7 +176,7 @@
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            color: #aaa;
+            color: #aaaaaa88;
             font-weight: bold;
             font-size: 14px;
             line-height: 20px;
@@ -228,7 +232,7 @@
         <h2>과목 <span style="font-size: 14px; font-weight: normal;">|&nbsp; 총 학점: <span id="current-total-credits">0</span> / <span id="required-total-credits" contenteditable="true" spellcheck="false">130</span> &nbsp;|&nbsp; 평균 평점: <span id="gpa-display">0.00</span> / <span id="required-gpa" contenteditable="true" spellcheck="false">2.00</span> &nbsp;|</span></h2>
         <table id="subject-list-table">
             <colgroup>
-                <col style="width: 60%;">
+                <col style="width: 55%;">
                 <col style="width: 20%;">
                 <col style="width: 20%;">
             </colgroup>
@@ -237,24 +241,6 @@
                     <th>과목명</th>
                     <th>학점</th>
                     <th>성적</th>
-                </tr>
-            </thead>
-            <tbody id="subject-list">
-                <!-- 과목 행이 여기에 추가됩니다. -->
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="3" style="text-align: left;">
-                        <button id="add-subject-btn">+ 추가하기</button>
-                    </td>
-                </tr>
-            </tfoot>
-        </table>
-        <h2>필수 과목</h2>
-        <table id="subject-list-table">
-            <thead>
-                <tr>
-                    <th>과목명</th>
                 </tr>
             </thead>
             <tbody id="subject-list">
