@@ -225,7 +225,7 @@
     </div>
 
     <div id="right-panel">
-        <h2>과목 <span style="font-size: 14px; font-weight: normal;">(총 학점: <span id="current-total-credits">0</span> / 졸업 요구: <span id="required-total-credits" contenteditable="true" spellcheck="false">130</span>)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(평균 평점: <span id="gpa-display">0.00</span> / 졸업 요구: <span id="required-gpa" contenteditable="true" spellcheck="false">2.00</span>)</span></h2>
+        <h2>과목 <span style="font-size: 14px; font-weight: normal;">|&nbsp; 총 학점: <span id="current-total-credits">0</span> / <span id="required-total-credits" contenteditable="true" spellcheck="false">130</span> &nbsp;|&nbsp; 평균 평점: <span id="gpa-display">0.00</span> / <span id="required-gpa" contenteditable="true" spellcheck="false">2.00</span> &nbsp;|</span></h2>
         <table id="subject-list-table">
             <colgroup>
                 <col style="width: 60%;">
@@ -250,9 +250,26 @@
                 </tr>
             </tfoot>
         </table>
+        <h2>필수 과목</h2>
+        <table id="subject-list-table">
+            <thead>
+                <tr>
+                    <th>과목명</th>
+                </tr>
+            </thead>
+            <tbody id="subject-list">
+                <!-- 과목 행이 여기에 추가됩니다. -->
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="3" style="text-align: left;">
+                        <button id="add-subject-btn">+ 추가하기</button>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
     </div>
 
     <script src="script.js"></script>
 </body>
 </html>
-
