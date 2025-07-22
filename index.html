@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학점 계산기</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            gap: 20px;
+        }
+        #left-panel, #right-panel {
+            padding: 20px;
+            min-height: 90vh;
+        }
+        #left-panel {
+            width: 60%;
+            border-right: 1px solid #ccc;
+        }
+        #right-panel {
+            width: 40%;
+        }
+        h2 {
+            margin-top: 0;
+        }
+        #add-category-btn {
+            padding: 0; /* 채우기 제거 */
+            margin-bottom: 15px;
+            cursor: pointer;
+            border: none; /* 테두리 제거 */
+            background: none; /* 배경 제거 */
+            color: #aaa; /* 글자색 변경 */
+            font-size: 16px; /* 기존 버튼과 유사하게 */
+        }
+        #add-category-btn:hover {
+            color: #000; /* 호버 시 색상 변경 */
+        }
+        #category-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .category-box {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            min-width: 250px;
+            min-height: 150px;
+            background-color: #f9f9f9;
+            position: relative; /* 삭제 버튼 공간 확보 */
+            margin-top: 10px; /* 삭제 버튼 공간 확보 */
+        }
+        .remove-category-btn {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #aaa;
+            font-weight: bold;
+            font-size: 14px;
+            line-height: 20px;
+        }
+        .remove-category-btn:hover {
+            color: red;
+            border-color: red;
+        }
+        .category-header {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .category-name {
+            font-weight: bold;
+        }
+        .credits-info {
+            font-size: 12px;
+            color: #555;
+        }
+        .current-credits.insufficient {
+            color: red;
+            font-weight: bold;
+        }
+        .current-credits.sufficient {
+            color: green;
+            font-weight: bold;
+        }
+        #current-total-credits.insufficient {
+            color: red;
+            font-weight: bold;
+        }
+        #current-total-credits.sufficient {
+            color: green;
+            font-weight: bold;
+        }
+        #gpa-display.insufficient {
+            color: red;
+            font-weight: bold;
+        }
+        #gpa-display.sufficient {
+            color: green;
+            font-weight: bold;
+        }
+        span[contenteditable="true"] {
+            padding: 0; /* 양옆 공백 제거 */
+            background-color: #fff;
+            border: 1px solid transparent;
+        }
+        span[contenteditable="true"]:focus {
+            outline: 1px solid #aaa;
+            border-style: solid;
+        }
+        .category-box .subject-item {
+            background-color: white;
+            border: 1px solid #eee;
+            border-radius: 3px;
+            padding: 5px;
+            margin-bottom: 5px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: grab;
+        }
+        .remove-subject-btn {
+            cursor: pointer;
+            color: #aaa;
+            font-weight: bold;
+            padding: 0 5px;
+        }
+        .remove-subject-btn:hover {
+            color: #f00;
+        }
+        #subject-list-table {
+            width: 100%;
+            text-align: center;
+            border-spacing: 0; /* 셀 간격 제거 */
+        }
+        #subject-list-table th,
+        #subject-list-table td {
+            padding: 10px 8px; /* 패딩 조정 */
+        }
+        #subject-list-table th {
+            border-bottom: 1px solid #e0e0e0; /* 헤더 아래쪽 테두리 */
+        }
+        #subject-list-table tr {
+            cursor: grab;
+            position: relative; /* 자식 요소인 삭제 버튼의 기준점 */
+        }
+        .subject-row-actions {
+            position: absolute;
+            right: -20px; /* 테이블 경계 밖으로 이동 */
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        .remove-main-subject-btn {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #aaa;
+            font-weight: bold;
+            font-size: 14px;
+            line-height: 20px;
+        }
+        .remove-main-subject-btn:hover {
+            color: red;
+        }
+        td[contenteditable="true"]:focus {
+            outline: 1px solid #aaa;
+        }
+        #subject-list-table tfoot td {
+            border: none; /* tfoot의 td 테두리 제거 */
+        }
+        #add-subject-btn {
+            border: none; /* 테두리 제거 */
+            background: none; /* 배경 제거 */
+            font-size: 16px;
+            cursor: pointer;
+            padding: 5px 0;
+            text-align: left; /* 왼쪽 정렬 */
+            color: #aaa; /* 색상 추가 */
+        }
+        #add-subject-btn:hover {
+            color: #000; /* 호버 색상 */
+        }
+        .grade-select {
+            width: 100%; /* 셀 너비에 맞춤 */
+            padding: 0; /* 내부 여백 제거 */
+            border: none; /* 테두리 제거 */
+            background-color: transparent; /* 배경 투명하게 */
+            -webkit-appearance: none; /* 기본 드롭다운 스타일 제거 (크롬, 사파리) */
+            -moz-appearance: none; /* 기본 드롭다운 스타일 제거 (파이어폭스) */
+            appearance: none; /* 기본 드롭다운 스타일 제거 */
+            text-align: center; /* 텍스트 중앙 정렬 */
+            font-size: inherit; /* 부모 요소의 폰트 크기 상속 */
+            cursor: pointer; /* 마우스 오버 시 포인터 변경 */
+        }
+        .grade-select:focus {
+            outline: none; /* 포커스 시 아웃라인 제거 */
+        }
+    </style>
+</head>
+<body>
+    <div id="left-panel">
+        <h2>카테고리</h2>
+        <button id="add-category-btn">+ 추가하기</button>
+        <div id="category-container">
+            <!-- 카테고리가 여기에 추가됩니다. -->
+        </div>
+    </div>
+
+    <div id="right-panel">
+        <h2>과목 <span style="font-size: 14px; font-weight: normal;">(총 학점: <span id="current-total-credits">0</span> / 졸업 요구: <span id="required-total-credits" contenteditable="true" spellcheck="false">130</span>)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(GPA: <span id="gpa-display">0.00</span> / 졸업 요구 GPA: <span id="required-gpa" contenteditable="true" spellcheck="false">2.00</span>)</span></h2>
+        <table id="subject-list-table">
+            <colgroup>
+                <col style="width: 60%;">
+                <col style="width: 20%;">
+                <col style="width: 20%;">
+            </colgroup>
+            <thead>
+                <tr>
+                    <th>과목명</th>
+                    <th>학점</th>
+                    <th>성적</th>
+                </tr>
+            </thead>
+            <tbody id="subject-list">
+                <!-- 과목 행이 여기에 추가됩니다. -->
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="3" style="text-align: left;">
+                        <button id="add-subject-btn">+ 추가하기</button>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
