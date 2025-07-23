@@ -1,11 +1,20 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const subjectListTableBody = document.getElementById('subject-list');
-    const addSubjectBtn = document.getElementById('add-subject-btn');
-    const addCategoryBtn = document.getElementById('add-category-btn');
-    const categoryContainer = document.getElementById('category-container');
-    const leftPanel = document.getElementById('left-panel');
+    // --- DOM Elements ---
+    const DOMElements = {
+        subjectListTableBody: document.getElementById('subject-list'),
+        addSubjectBtn: document.getElementById('add-subject-btn'),
+        addCategoryBtn: document.getElementById('add-category-btn'),
+        categoryContainer: document.getElementById('category-container'),
+        leftPanel: document.getElementById('left-panel'),
+        currentTotalCreditsSpan: document.getElementById('current-total-credits'),
+        requiredTotalCreditsSpan: document.getElementById('required-total-credits'),
+        gpaDisplaySpan: document.getElementById('gpa-display'),
+        requiredGPASpan: document.getElementById('required-gpa'),
+        excelUploadBtn: document.getElementById('excel-upload-btn'),
+        excelFileInput: document.getElementById('excel-file-input')
+    };
 
-    // --- 데이터 관리 --- //
+    // --- Data Management ---
     let subjects = {}; // { id: { name, credits, grade } }
     let categories = {}; // { id: { name, requiredCredits, subjects: [subjectId, ...] } }
     let nextSubjectId = 1;
@@ -14,20 +23,12 @@ document.addEventListener('DOMContentLoaded', () => {
     let requiredGPA = 2.00; // 졸업 요구 평균 평점 초기값
 
     const gradePointsMap = {
-        'A+': 4.5,
-        'A0': 4.0,
-        'B+': 3.5,
-        'B0': 3.0,
-        'C+': 2.5,
-        'C0': 2.0,
-        'D+': 1.5,
-        'D0': 1.0,
-        'F': 0.0, // F는 평점 계산에 포함되지 않지만, 매핑을 위해 0으로 설정
-        'P': 0.0, // P는 평점 계산에 포함되지 않음
-        'NP': 0.0 // NP는 평점 계산에 포함되지 않음
+        'A+': 4.5, 'A0': 4.0, 'B+': 3.5, 'B0': 3.0,
+        'C+': 2.5, 'C0': 2.0, 'D+': 1.5, 'D0': 1.0,
+        'F': 0.0, 'P': 0.0, 'NP': 0.0
     };
 
-    // --- 데이터 저장 및 로드 함수 --- //
+    // --- Utility Functions ---
     const saveData = () => {
         localStorage.setItem('subjects', JSON.stringify(subjects));
         localStorage.setItem('categories', JSON.stringify(categories));
@@ -45,136 +46,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const savedRequiredTotalCredits = localStorage.getItem('requiredTotalCredits');
         const savedRequiredGPA = localStorage.getItem('requiredGPA');
 
-        if (savedSubjects) {
-            subjects = JSON.parse(savedSubjects);
-        }
-        if (savedCategories) {
-            categories = JSON.parse(savedCategories);
-        }
-        if (savedNextSubjectId) {
-            nextSubjectId = parseInt(savedNextSubjectId);
-        }
-        if (savedNextCategoryId) {
-            nextCategoryId = parseInt(savedNextCategoryId);
-        }
-        if (savedRequiredTotalCredits) {
-            requiredTotalCredits = parseFloat(savedRequiredTotalCredits);
-        }
-        if (savedRequiredGPA) {
-            requiredGPA = parseFloat(savedRequiredGPA);
-        }
+        if (savedSubjects) subjects = JSON.parse(savedSubjects);
+        if (savedCategories) categories = JSON.parse(savedCategories);
+        if (savedNextSubjectId) nextSubjectId = parseInt(savedNextSubjectId);
+        if (savedNextCategoryId) nextCategoryId = parseInt(savedNextCategoryId);
+        if (savedRequiredTotalCredits) requiredTotalCredits = parseFloat(savedRequiredTotalCredits);
+        if (savedRequiredGPA) requiredGPA = parseFloat(savedRequiredGPA);
 
-        // UI 렌더링
         renderSubjects();
         renderCategories();
     };
 
-    const renderSubjects = () => {
-        subjectListTableBody.innerHTML = ''; // 기존 내용 비우기
-        Object.keys(subjects).sort((a, b) => {
-            // Extract the numeric part of the ID for sorting
-            const numA = parseInt(a.replace('sub-', ''));
-            const numB = parseInt(b.replace('sub-', ''));
-            return numA - numB;
-        }).forEach(subjectId => {
-            const subject = subjects[subjectId];
-            const newRow = subjectListTableBody.insertRow();
-            newRow.dataset.subjectId = subjectId;
-            newRow.innerHTML = `
-                <td contenteditable="true" spellcheck="false">${subject.name}</td>
-                <td contenteditable="true" spellcheck="false">${subject.credits}</td>
-                <td>
-                    <select class="grade-select" spellcheck="false">
-                        <option value=""></option>
-                        <option value="A+">A+</option>
-                        <option value="A0">A0</option>
-                        <option value="B+">B+</option>
-                        <option value="B0">B0</option>
-                        <option value="C+">C+</option>
-                        <option value="C0">C0</option>
-                        <option value="D+">D+</option>
-                        <option value="D0">D0</option>
-                        <option value="F">F</option>
-                        <option value="P">P</option>
-                        <option value="NP">NP</option>
-                    </select>
-                </td>
-            `;
-            // Set selected grade
-            const gradeSelect = newRow.querySelector('.grade-select');
-            if (subject.grade) {
-                gradeSelect.value = subject.grade;
-            }
-            // Add remove button
-            const actionsDiv = document.createElement('div');
-            actionsDiv.className = 'subject-row-actions';
-            const removeBtn = document.createElement('span');
-            removeBtn.className = 'remove-main-subject-btn';
-            removeBtn.innerHTML = '&times;';
-            removeBtn.addEventListener('click', () => removeSubject(subjectId));
-            actionsDiv.appendChild(removeBtn);
-            newRow.appendChild(actionsDiv);
-
-            addRowEventListeners(newRow);
-        });
-    };
-
-    const renderCategories = () => {
-        categoryContainer.innerHTML = ''; // 기존 내용 비우기
-        Object.keys(categories).sort((a, b) => {
-            // Extract the numeric part of the ID for sorting
-            const numA = parseInt(a.replace('cat-', ''));
-            const numB = parseInt(b.replace('cat-', ''));
-            return numA - numB;
-        }).forEach(categoryId => {
-            const category = categories[categoryId];
-            const categoryBox = document.createElement('div');
-            categoryBox.className = 'category-box';
-            categoryBox.dataset.categoryId = categoryId;
-            categoryBox.innerHTML = `
-                <span class="remove-category-btn">&times;</span>
-                <div class="category-header">
-                    <span class="category-name" contenteditable="true" spellcheck="false">${category.name}</span>
-                    <span class="credits-info">
-                        (<span class="current-credits insufficient">0</span> /
-                        <span class="required-credits" contenteditable="true" spellcheck="false">${category.requiredCredits}</span> 학점)
-                    </span>
-                </div>
-            `;
-            categoryContainer.appendChild(categoryBox);
-
-            categoryBox.querySelector('.remove-category-btn').addEventListener('click', () => removeCategory(categoryId));
-            const nameSpan = categoryBox.querySelector('.category-name');
-            const creditsSpan = categoryBox.querySelector('.required-credits');
-            nameSpan.addEventListener('blur', () => {
-                categories[categoryId].name = nameSpan.textContent.trim();
-                saveData(); // 데이터 변경 시 저장
-            });
-            creditsSpan.addEventListener('blur', () => {
-                const newCredits = parseInt(creditsSpan.textContent.trim(), 10);
-                if (!isNaN(newCredits)) {
-                    categories[categoryId].requiredCredits = newCredits;
-                    updateCategoryCredits(categoryId);
-                    saveData(); // 데이터 변경 시 저장
-                } else {
-                    creditsSpan.textContent = categories[categoryId].requiredCredits;
-                }
-            });
-
-            // Render subjects within this category
-            category.subjects.forEach(subjectId => {
-                createSubjectItemInCategory(subjectId, categoryId);
-            });
-            updateCategoryCredits(categoryId);
-        });
-    };
-
-
-    // --- 총 학점 계산 함수 --- //
     const calculateTotalCredits = () => {
         let totalCredits = 0;
         Object.values(subjects).forEach(subject => {
-            // F, NP를 제외한 과목의 학점만 합산
             if (subject.grade !== 'NP' && !isNaN(parseFloat(subject.credits))) {
                 totalCredits += parseFloat(subject.credits);
             }
@@ -182,8 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return totalCredits;
     };
 
-    // --- GPA 계산 함수 --- //
-        const calculateGPA = () => {
+    const calculateGPA = () => {
         let totalGradePoints = 0;
         let totalCreditsForGPA = 0;
 
@@ -191,7 +75,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const credits = parseFloat(subject.credits);
             const grade = subject.grade;
 
-            //NP, P는 평점 계산에 포함하지 않음
             if (grade !== 'NP' && grade !== 'P' && !isNaN(credits) && credits > 0) {
                 const gradePoint = gradePointsMap[grade];
                 if (gradePoint !== undefined) {
@@ -201,74 +84,46 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        if (totalCreditsForGPA === 0) {
-            return 0.00;
-        } else {
-            return (totalGradePoints / totalCreditsForGPA).toFixed(2);
-        }
+        return totalCreditsForGPA === 0 ? 0.00 : (totalGradePoints / totalCreditsForGPA).toFixed(2);
     };
-
 
     const updateOverallDisplay = () => {
-        const currentTotalCreditsSpan = document.getElementById('current-total-credits');
-        const requiredTotalCreditsSpan = document.getElementById('required-total-credits');
-        const gpaDisplaySpan = document.getElementById('gpa-display');
-        const requiredGPASpan = document.getElementById('required-gpa');
+        const { currentTotalCreditsSpan, requiredTotalCreditsSpan, gpaDisplaySpan, requiredGPASpan } = DOMElements;
 
-        if (currentTotalCreditsSpan) {
-            const currentCredits = calculateTotalCredits();
-            currentTotalCreditsSpan.textContent = currentCredits;
-            currentTotalCreditsSpan.classList.remove('insufficient', 'sufficient');
-            if (currentCredits < requiredTotalCredits) {
-                currentTotalCreditsSpan.classList.add('insufficient');
-            } else {
-                currentTotalCreditsSpan.classList.add('sufficient');
-            }
-        }
-        if (requiredTotalCreditsSpan) {
-            requiredTotalCreditsSpan.textContent = requiredTotalCredits;
-        }
-        if (gpaDisplaySpan) {
-            const currentGPA = parseFloat(calculateGPA());
-            gpaDisplaySpan.textContent = currentGPA.toFixed(2);
-            gpaDisplaySpan.classList.remove('insufficient', 'sufficient');
-            if (currentGPA < requiredGPA) {
-                gpaDisplaySpan.classList.add('insufficient');
-            } else {
-                gpaDisplaySpan.classList.add('sufficient');
-            }
-        }
-        if (requiredGPASpan) {
-            requiredGPASpan.textContent = requiredGPA.toFixed(2);
-        }
-        saveData(); // 전체 디스플레이 업데이트 시 저장
+        const currentCredits = calculateTotalCredits();
+        currentTotalCreditsSpan.textContent = currentCredits;
+        currentTotalCreditsSpan.classList.toggle('insufficient', currentCredits < requiredTotalCredits);
+        currentTotalCreditsSpan.classList.toggle('sufficient', currentCredits >= requiredTotalCredits);
+
+        requiredTotalCreditsSpan.textContent = requiredTotalCredits;
+
+        const currentGPA = parseFloat(calculateGPA());
+        gpaDisplaySpan.textContent = currentGPA.toFixed(2);
+        gpaDisplaySpan.classList.toggle('insufficient', currentGPA < requiredGPA);
+        gpaDisplaySpan.classList.toggle('sufficient', currentGPA >= requiredGPA);
+
+        requiredGPASpan.textContent = requiredGPA.toFixed(2);
+        saveData();
     };
 
-    // --- 전역 삭제 함수 --- //
     const removeSubject = (subjectId) => {
-        // 1. 전역 과목 목록에서 삭제
         delete subjects[subjectId];
-
-        // 2. DOM에서 해당 과목 행 삭제
-        const subjectRow = subjectListTableBody.querySelector(`[data-subject-id="${subjectId}"]`);
+        const subjectRow = DOMElements.subjectListTableBody.querySelector(`[data-subject-id="${subjectId}"]`);
         if (subjectRow) subjectRow.remove();
 
-        // 3. 이 과목을 포함하는 모든 카테고리에서 제거 및 업데이트
         Object.keys(categories).forEach(categoryId => {
-            removeSubjectFromCategory(subjectId, categoryId, true); // DOM도 함께 정리
+            removeSubjectFromCategory(subjectId, categoryId, true);
         });
-        updateOverallDisplay(); // 과목 삭제 후 총 학점 업데이트
-        saveData(); // 데이터 변경 시 저장
+        updateOverallDisplay();
+        saveData();
     };
 
     const removeCategory = (categoryId) => {
         delete categories[categoryId];
         const categoryBox = document.querySelector(`[data-category-id="${categoryId}"]`);
         if (categoryBox) categoryBox.remove();
-        saveData(); // 데이터 변경 시 저장
+        saveData();
     };
-
-    // --- 렌더링 및 업데이트 함수 --- //
 
     const updateCategoryCredits = (categoryId) => {
         const category = categories[categoryId];
@@ -285,14 +140,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const currentCreditsSpan = categoryBox.querySelector('.current-credits');
         currentCreditsSpan.textContent = currentCredits;
-
-        currentCreditsSpan.classList.remove('insufficient', 'sufficient');
-        if (currentCredits < category.requiredCredits) {
-            currentCreditsSpan.classList.add('insufficient');
-        } else {
-            currentCreditsSpan.classList.add('sufficient');
-        }
-        saveData(); // 카테고리 학점 업데이트 시 저장
+        currentCreditsSpan.classList.toggle('insufficient', currentCredits < category.requiredCredits);
+        currentCreditsSpan.classList.toggle('sufficient', currentCredits >= category.requiredCredits);
+        saveData();
     };
 
     const updateCategoriesWithSubject = (subjectId) => {
@@ -306,7 +156,185 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateCategoryCredits(categoryId);
             }
         });
-        saveData(); // 카테고리 내 과목 업데이트 시 저장
+        saveData();
+    };
+
+    const removeSubjectFromCategory = (subjectId, categoryId, updateDOM = true) => {
+        const category = categories[categoryId];
+        if (category && category.subjects.includes(subjectId)) {
+            category.subjects = category.subjects.filter(id => id !== subjectId);
+            if (updateDOM) {
+                const subjectItem = document.querySelector(`[data-category-id="${categoryId}"] [data-subject-id="${subjectId}"]`);
+                if (subjectItem) subjectItem.remove();
+            }
+            updateCategoryCredits(categoryId);
+            saveData();
+        }
+    };
+
+    // --- HTML Generation Functions ---
+    const createSubjectRowHTML = (subject, subjectId) => `
+        <td contenteditable="true" spellcheck="false">${subject.name}</td>
+        <td contenteditable="true" spellcheck="false">${subject.credits}</td>
+        <td>
+            <select class="grade-select" spellcheck="false">
+                <option value=""></option>
+                <option value="A+">A+</option>
+                <option value="A0">A0</option>
+                <option value="B+">B+</option>
+                <option value="B0">B0</option>
+                <option value="C+">C+</option>
+                <option value="C0">C0</option>
+                <option value="D+">D+</option>
+                <option value="D0">D0</option>
+                <option value="F">F</option>
+                <option value="P">P</option>
+                <option value="NP">NP</option>
+            </select>
+        </td>
+    `;
+
+    const createCategoryBoxHTML = (category, categoryId) => `
+        <span class="remove-category-btn">&times;</span>
+        <div class="category-header">
+            <span class="category-name" contenteditable="true" spellcheck="false">${category.name}</span>
+            <span class="credits-info">
+                (<span class="current-credits insufficient">0</span> /
+                <span class="required-credits" contenteditable="true" spellcheck="false">${category.requiredCredits}</span> 학점)
+            </span>
+        </div>
+    `;
+
+    const createSubjectItemHTML = (subject, subjectId) => `
+        <span>${subject.name} (${subject.credits}학점, ${subject.grade})</span>
+        <span class="remove-subject-btn">&times;</span>
+    `;
+
+    // --- Event Listener Attachment Functions ---
+    const attachSubjectRowEventListeners = (row, subjectId) => {
+        row.setAttribute('draggable', 'true');
+
+        Array.from(row.cells).forEach((cell, index) => {
+            if (index === 0) { // Subject Name
+                cell.addEventListener('blur', () => {
+                    subjects[subjectId].name = cell.textContent.trim();
+                    updateCategoriesWithSubject(subjectId);
+                    updateOverallDisplay();
+                });
+            } else if (index === 1) { // Credits
+                cell.addEventListener('blur', () => {
+                    let credits = cell.textContent.trim();
+                    if (isNaN(parseFloat(credits)) || !isFinite(credits)) {
+                        credits = '';
+                        cell.textContent = '';
+                    }
+                    subjects[subjectId].credits = credits;
+                    updateCategoriesWithSubject(subjectId);
+                    updateOverallDisplay();
+                });
+            } else if (index === 2) { // Grade Select
+                const gradeSelect = cell.querySelector('.grade-select');
+                if (gradeSelect) {
+                    gradeSelect.addEventListener('change', () => {
+                        subjects[subjectId].grade = gradeSelect.value;
+                        updateCategoriesWithSubject(subjectId);
+                        updateOverallDisplay();
+                    });
+                }
+            }
+        });
+    };
+
+    const attachCategoryBoxEventListeners = (categoryBox, categoryId) => {
+        categoryBox.querySelector('.remove-category-btn').addEventListener('click', () => removeCategory(categoryId));
+        const nameSpan = categoryBox.querySelector('.category-name');
+        const creditsSpan = categoryBox.querySelector('.required-credits');
+
+        nameSpan.addEventListener('blur', () => {
+            categories[categoryId].name = nameSpan.textContent.trim();
+            saveData();
+        });
+
+        creditsSpan.addEventListener('blur', () => {
+            const newCredits = parseInt(creditsSpan.textContent.trim(), 10);
+            if (!isNaN(newCredits)) {
+                categories[categoryId].requiredCredits = newCredits;
+                updateCategoryCredits(categoryId);
+                saveData();
+            } else {
+                creditsSpan.textContent = categories[categoryId].requiredCredits;
+            }
+        });
+    };
+
+    // --- Rendering Functions ---
+    const renderSubjects = () => {
+        DOMElements.subjectListTableBody.innerHTML = '';
+        Object.keys(subjects).sort((a, b) => parseInt(a.replace('sub-', '')) - parseInt(b.replace('sub-', '')))
+            .forEach(subjectId => {
+                const subject = subjects[subjectId];
+                const newRow = DOMElements.subjectListTableBody.insertRow();
+                newRow.dataset.subjectId = subjectId;
+                newRow.innerHTML = createSubjectRowHTML(subject, subjectId);
+
+                const gradeSelect = newRow.querySelector('.grade-select');
+                if (subject.grade) gradeSelect.value = subject.grade;
+
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = 'subject-row-actions';
+                const removeBtn = document.createElement('span');
+                removeBtn.className = 'remove-main-subject-btn';
+                removeBtn.innerHTML = '&times;';
+                removeBtn.addEventListener('click', () => removeSubject(subjectId));
+                actionsDiv.appendChild(removeBtn);
+                newRow.appendChild(actionsDiv);
+
+                attachSubjectRowEventListeners(newRow, subjectId);
+            });
+    };
+
+    const renderCategories = () => {
+        DOMElements.categoryContainer.innerHTML = '';
+        Object.keys(categories).sort((a, b) => parseInt(a.replace('cat-', '')) - parseInt(b.replace('cat-', '')))
+            .forEach(categoryId => {
+                const category = categories[categoryId];
+                const categoryBox = document.createElement('div');
+                categoryBox.className = 'category-box';
+                categoryBox.dataset.categoryId = categoryId;
+                categoryBox.innerHTML = createCategoryBoxHTML(category, categoryId);
+                DOMElements.categoryContainer.appendChild(categoryBox);
+
+                attachCategoryBoxEventListeners(categoryBox, categoryId);
+
+                category.subjects.forEach(subjectId => {
+                    createSubjectItemInCategory(subjectId, categoryId);
+                });
+                updateCategoryCredits(categoryId);
+            });
+    };
+
+    const createNewSubjectRow = (subjectData = { name: '', credits: '', grade: '' }, subjectId = `sub-${nextSubjectId++}`) => {
+        const newRow = DOMElements.subjectListTableBody.insertRow();
+        newRow.dataset.subjectId = subjectId;
+        newRow.innerHTML = createSubjectRowHTML(subjectData, subjectId);
+
+        const gradeSelect = newRow.querySelector('.grade-select');
+        if (subjectData.grade) gradeSelect.value = subjectData.grade;
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'subject-row-actions';
+        const removeBtn = document.createElement('span');
+        removeBtn.className = 'remove-main-subject-btn';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.addEventListener('click', () => removeSubject(subjectId));
+        actionsDiv.appendChild(removeBtn);
+        newRow.appendChild(actionsDiv);
+
+        subjects[subjectId] = subjectData;
+        attachSubjectRowEventListeners(newRow, subjectId);
+        newRow.cells[0].focus();
+        updateOverallDisplay();
+        saveData();
     };
 
     const createSubjectItemInCategory = (subjectId, categoryId) => {
@@ -319,135 +347,25 @@ document.addEventListener('DOMContentLoaded', () => {
         subjectItem.dataset.subjectId = subjectId;
         subjectItem.dataset.fromCategory = categoryId;
         subjectItem.setAttribute('draggable', 'true');
+        subjectItem.innerHTML = createSubjectItemHTML(subject, subjectId);
         
-        const textSpan = document.createElement('span');
-        textSpan.textContent = `${subject.name} (${subject.credits}학점, ${subject.grade})`;
-        subjectItem.appendChild(textSpan);
-
-        const removeBtn = document.createElement('span');
-        removeBtn.className = 'remove-subject-btn';
-        removeBtn.innerHTML = '&times;';
-        removeBtn.addEventListener('click', () => {
+        subjectItem.querySelector('.remove-subject-btn').addEventListener('click', () => {
             removeSubjectFromCategory(subjectId, categoryId);
-            saveData(); // 데이터 변경 시 저장
         });
-        subjectItem.appendChild(removeBtn);
 
         categoryBox.appendChild(subjectItem);
-        saveData(); // 카테고리에 과목 추가 시 저장
+        saveData();
     };
 
-    const removeSubjectFromCategory = (subjectId, categoryId, updateDOM = true) => {
-        const category = categories[categoryId];
-        if (category && category.subjects.includes(subjectId)) {
-            category.subjects = category.subjects.filter(id => id !== subjectId);
-            if (updateDOM) {
-                const subjectItem = document.querySelector(`[data-category-id="${categoryId}"] [data-subject-id="${subjectId}"]`);
-                if (subjectItem) subjectItem.remove();
-            }
-            updateCategoryCredits(categoryId);
-            saveData(); // 데이터 변경 시 저장
-        }
-    };
-
-    // --- 이벤트 핸들러 --- //
-
-    const addRowEventListeners = (row) => {
-        row.setAttribute('draggable', 'true');
-
-        const allowedGrades = ['A+', 'A0', 'B+', 'B0', 'C+', 'C0', 'D+', 'D0', 'F', 'P', 'NP'];
-
-        Array.from(row.cells).forEach((cell, index) => {
-            if (index === 0) { // 과목명 셀
-                cell.addEventListener('blur', () => {
-                    const subjectId = row.dataset.subjectId;
-                    subjects[subjectId].name = cell.textContent.trim();
-                    updateCategoriesWithSubject(subjectId);
-                    updateOverallDisplay(); // 과목명 변경 후 총 학점 업데이트
-                    saveData(); // 데이터 변경 시 저장
-                });
-            } else if (index === 1) { // 학점 셀
-                cell.addEventListener('blur', () => {
-                    const subjectId = row.dataset.subjectId;
-                    let credits = cell.textContent.trim();
-                    if (isNaN(parseFloat(credits)) || !isFinite(credits)) {
-                        credits = ''; // 숫자가 아니면 빈 문자열로
-                        cell.textContent = '';
-                    }
-                    subjects[subjectId].credits = credits;
-                    updateCategoriesWithSubject(subjectId);
-                    updateOverallDisplay(); // 학점 변경 후 총 학점 업데이트
-                    saveData(); // 데이터 변경 시 저장
-                });
-            } else if (index === 2) { // 성적 셀 (select box)
-                const gradeSelect = cell.querySelector('.grade-select');
-                if (gradeSelect) {
-                    gradeSelect.addEventListener('change', () => {
-                        const subjectId = row.dataset.subjectId;
-                        subjects[subjectId].grade = gradeSelect.value;
-                        updateCategoriesWithSubject(subjectId);
-                        updateOverallDisplay(); // 성적 변경 후 총 학점 업데이트
-                        saveData(); // 데이터 변경 시 저장
-                    });
-                }
-            }
-        });
-    };
-
-    const createNewSubjectRow = (subjectData = { name: '', credits: '', grade: '' }, subjectId = `sub-${nextSubjectId++}`) => {
-        const newRow = subjectListTableBody.insertRow();
-        newRow.dataset.subjectId = subjectId;
-        newRow.innerHTML = `
-            <td contenteditable="true" spellcheck="false">${subjectData.name}</td>
-            <td contenteditable="true" spellcheck="false">${subjectData.credits}</td>
-            <td>
-                <select class="grade-select" spellcheck="false">
-                    <option value=""></option>
-                    <option value="A+">A+</option>
-                    <option value="A0">A0</option>
-                    <option value="B+">B+</option>
-                    <option value="B0">B0</option>
-                    <option value="C+">C+</option>
-                    <option value="C0">C0</option>
-                    <option value="D+">D+</option>
-                    <option value="D0">D0</option>
-                    <option value="F">F</option>
-                    <option value="P">P</option>
-                    <option value="NP">NP</option>
-                </select>
-            </td>
-        `;
-        const gradeSelect = newRow.querySelector('.grade-select');
-        if (subjectData.grade) {
-            gradeSelect.value = subjectData.grade;
-        }
-
-        // 삭제 버튼을 위한 div 추가
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'subject-row-actions';
-        const removeBtn = document.createElement('span');
-        removeBtn.className = 'remove-main-subject-btn';
-        removeBtn.innerHTML = '&times;';
-        removeBtn.addEventListener('click', () => removeSubject(subjectId));
-        actionsDiv.appendChild(removeBtn);
-        newRow.appendChild(actionsDiv);
-
-        subjects[subjectId] = subjectData;
-        addRowEventListeners(newRow);
-        newRow.cells[0].focus();
-        updateOverallDisplay(); // 새 과목 추가 후 총 학점 업데이트
-        saveData(); // 데이터 변경 시 저장
-    };
-
-    subjectListTableBody.addEventListener('keydown', (event) => {
+    // --- Event Listeners ---
+    DOMElements.subjectListTableBody.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
             const currentCell = event.target;
             const currentRow = currentCell.parentElement;
-            if (currentCell.cellIndex < 2) { 
+            if (currentCell.cellIndex < 2) {
                  currentRow.cells[currentCell.cellIndex + 1].focus();
             } else if (currentCell.cellIndex === 2) {
-                // 성적 칸에서 엔터 시 다음 행으로 이동하지 않고, 현재 행의 첫 번째 셀로 포커스 이동
                 currentRow.cells[0].focus();
             }
         }
@@ -455,88 +373,62 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let draggedRow = null;
 
-    subjectListTableBody.addEventListener('dragstart', (e) => {
+    DOMElements.subjectListTableBody.addEventListener('dragstart', (e) => {
         draggedRow = e.target.closest('tr');
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', draggedRow.dataset.subjectId);
     });
 
-    subjectListTableBody.addEventListener('dragover', (e) => {
+    DOMElements.subjectListTableBody.addEventListener('dragover', (e) => {
         e.preventDefault();
         const targetRow = e.target.closest('tr');
         if (targetRow && targetRow !== draggedRow) {
             const boundingBox = targetRow.getBoundingClientRect();
             const offset = boundingBox.y + (boundingBox.height / 2);
             if (e.clientY < offset) {
-                subjectListTableBody.insertBefore(draggedRow, targetRow);
+                DOMElements.subjectListTableBody.insertBefore(draggedRow, targetRow);
             } else {
-                subjectListTableBody.insertBefore(draggedRow, targetRow.nextSibling);
+                DOMElements.subjectListTableBody.insertBefore(draggedRow, targetRow.nextSibling);
             }
         }
     });
 
-    subjectListTableBody.addEventListener('dragend', () => {
+    DOMElements.subjectListTableBody.addEventListener('dragend', () => {
         draggedRow = null;
-        // Re-order subjects object based on DOM order
         const newSubjectOrder = {};
-        Array.from(subjectListTableBody.children).forEach(row => {
+        Array.from(DOMElements.subjectListTableBody.children).forEach(row => {
             const subjectId = row.dataset.subjectId;
             newSubjectOrder[subjectId] = subjects[subjectId];
         });
         subjects = newSubjectOrder;
-        saveData(); // 순서 변경 시 저장
+        saveData();
     });
 
-    addSubjectBtn.addEventListener('click', () => createNewSubjectRow());
+    DOMElements.addSubjectBtn.addEventListener('click', () => createNewSubjectRow());
 
-    addCategoryBtn.addEventListener('click', () => {
+    DOMElements.addCategoryBtn.addEventListener('click', () => {
         const categoryId = `cat-${nextCategoryId++}`;
         const categoryBox = document.createElement('div');
         categoryBox.className = 'category-box';
         categoryBox.dataset.categoryId = categoryId;
-        categoryBox.innerHTML = `
-            <span class="remove-category-btn">&times;</span>
-            <div class="category-header">
-                <span class="category-name" contenteditable="true" spellcheck="false">새 카테고리</span>
-                <span class="credits-info">
-                    (<span class="current-credits insufficient">0</span> /
-                    <span class="required-credits" contenteditable="true" spellcheck="false">15</span> 학점)
-                </span>
-            </div>
-        `;
-        categoryContainer.appendChild(categoryBox);
+        categoryBox.innerHTML = createCategoryBoxHTML({ name: '새 카테고리', requiredCredits: 15 }, categoryId);
+        DOMElements.categoryContainer.appendChild(categoryBox);
         categories[categoryId] = { name: '새 카테고리', requiredCredits: 15, subjects: [] };
-        saveData(); // 데이터 변경 시 저장
+        saveData();
 
-        categoryBox.querySelector('.remove-category-btn').addEventListener('click', () => removeCategory(categoryId));
-        const nameSpan = categoryBox.querySelector('.category-name');
-        const creditsSpan = categoryBox.querySelector('.required-credits');
-        nameSpan.addEventListener('blur', () => {
-            categories[categoryId].name = nameSpan.textContent.trim();
-            saveData(); // 데이터 변경 시 저장
-        });
-        creditsSpan.addEventListener('blur', () => {
-            const newCredits = parseInt(creditsSpan.textContent.trim(), 10);
-            if (!isNaN(newCredits)) {
-                categories[categoryId].requiredCredits = newCredits;
-                updateCategoryCredits(categoryId);
-                saveData(); // 데이터 변경 시 저장
-            } else {
-                creditsSpan.textContent = categories[categoryId].requiredCredits;
-            }
-        });
+        attachCategoryBoxEventListeners(categoryBox, categoryId);
     });
 
     document.addEventListener('dragstart', (e) => {
         if (e.target.classList.contains('subject-item')) {
             e.dataTransfer.setData('text/plain', e.target.dataset.subjectId);
             e.dataTransfer.setData('from-category', e.target.dataset.fromCategory);
-            e.dataTransfer.effectAllowed = 'copy'; // Allow copying to categories
+            e.dataTransfer.effectAllowed = 'copy';
         }
     });
 
-    categoryContainer.addEventListener('dragover', (e) => e.preventDefault());
-    categoryContainer.addEventListener('drop', (e) => {
+    DOMElements.categoryContainer.addEventListener('dragover', (e) => e.preventDefault());
+    DOMElements.categoryContainer.addEventListener('drop', (e) => {
         e.preventDefault();
         const subjectId = e.dataTransfer.getData('text/plain');
         const fromCategoryId = e.dataTransfer.getData('from-category');
@@ -554,70 +446,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 category.subjects.push(subjectId);
                 createSubjectItemInCategory(subjectId, toCategoryId);
                 updateCategoryCredits(toCategoryId);
-                saveData(); // 데이터 변경 시 저장
+                saveData();
             }
         }
     });
     
-    leftPanel.addEventListener('dragover', e => e.preventDefault());
-    leftPanel.addEventListener('drop', e => {
+    DOMElements.leftPanel.addEventListener('dragover', e => e.preventDefault());
+    DOMElements.leftPanel.addEventListener('drop', e => {
         e.preventDefault();
         if (!e.target.closest('#category-container')) {
             const subjectId = e.dataTransfer.getData('text/plain');
             const fromCategoryId = e.dataTransfer.getData('from-category');
             if (subjectId && fromCategoryId) {
                 removeSubjectFromCategory(subjectId, fromCategoryId);
-                saveData(); // 데이터 변경 시 저장
+                saveData();
             }
         }
     });
-    // --- 초기화 --- //
-    loadData(); // 데이터 로드
 
-    // 로드된 과목이 없으면 빈 과목 행 하나 생성
+    // --- Initialization ---
+    loadData();
+
     if (Object.keys(subjects).length === 0) {
         createNewSubjectRow();
     }
-    updateOverallDisplay(); // 초기 로드 시 총 학점 표시 업데이트
+    updateOverallDisplay();
 
-    const requiredTotalCreditsSpan = document.getElementById('required-total-credits');
-    if (requiredTotalCreditsSpan) {
-        requiredTotalCreditsSpan.addEventListener('blur', () => {
-            const newRequiredCredits = parseInt(requiredTotalCreditsSpan.textContent.trim(), 10);
+    if (DOMElements.requiredTotalCreditsSpan) {
+        DOMElements.requiredTotalCreditsSpan.addEventListener('blur', () => {
+            const newRequiredCredits = parseInt(DOMElements.requiredTotalCreditsSpan.textContent.trim(), 10);
             if (!isNaN(newRequiredCredits)) {
                 requiredTotalCredits = newRequiredCredits;
                 updateOverallDisplay();
-                saveData(); // 데이터 변경 시 저장
             } else {
-                requiredTotalCreditsSpan.textContent = requiredTotalCredits; // 유효하지 않으면 이전 값으로 되돌림
+                DOMElements.requiredTotalCreditsSpan.textContent = requiredTotalCredits;
             }
         });
     }
 
-    const requiredGPASpan = document.getElementById('required-gpa');
-    if (requiredGPASpan) {
-        requiredGPASpan.addEventListener('blur', () => {
-            const newRequiredGPA = parseFloat(requiredGPASpan.textContent.trim());
+    if (DOMElements.requiredGPASpan) {
+        DOMElements.requiredGPASpan.addEventListener('blur', () => {
+            const newRequiredGPA = parseFloat(DOMElements.requiredGPASpan.textContent.trim());
             if (!isNaN(newRequiredGPA)) {
                 requiredGPA = newRequiredGPA;
                 updateOverallDisplay();
-                saveData(); // 데이터 변경 시 저장
             } else {
-                requiredGPASpan.textContent = requiredGPA.toFixed(2); // 유효하지 않으면 이전 값으로 되돌림
+                DOMElements.requiredGPASpan.textContent = requiredGPA.toFixed(2);
             }
         });
     }
 
-    // --- 엑셀 파일 처리 로직 --- //
-    const excelUploadBtn = document.getElementById('excel-upload-btn');
-    const excelFileInput = document.getElementById('excel-file-input');
-
-    if (excelUploadBtn && excelFileInput) {
-        excelUploadBtn.addEventListener('click', () => {
-            excelFileInput.click();
+    // --- Excel File Processing Logic ---
+    if (DOMElements.excelUploadBtn && DOMElements.excelFileInput) {
+        DOMElements.excelUploadBtn.addEventListener('click', () => {
+            DOMElements.excelFileInput.click();
         });
 
-        excelFileInput.addEventListener('change', (event) => {
+        DOMElements.excelFileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
             if (!file) return;
 
@@ -630,7 +515,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     const worksheet = workbook.Sheets[firstSheetName];
                     const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-                    // 업로드 시 기존에 있던 빈 행이 있다면 제거
                     const initialSubjectIds = Object.keys(subjects);
                     if (initialSubjectIds.length === 1) {
                         const firstSubject = subjects[initialSubjectIds[0]];
@@ -642,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     jsonData.forEach(row => {
                         const subjectName = row['교과목명'];
                         const credits = row['학점'];
-                        const grade = row['등급']; // 사용자가 '성적' 대신 '등급'이라고 알려줌
+                        const grade = row['등급'];
 
                         if (subjectName && credits !== undefined && grade !== undefined) {
                             const subjectId = `sub-${nextSubjectId++}`;
@@ -654,7 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     });
 
-                    renderSubjects(); // 전체 과목 목록 다시 렌더링
+                    renderSubjects();
                     updateOverallDisplay();
                     saveData();
 
@@ -664,7 +548,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             };
             reader.readAsArrayBuffer(file);
-            event.target.value = ''; // 동일한 파일을 다시 업로드할 수 있도록 입력 초기화
+            event.target.value = '';
         });
     }
 });
