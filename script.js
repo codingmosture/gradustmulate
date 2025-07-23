@@ -182,20 +182,30 @@ document.addEventListener('DOMContentLoaded', () => {
         return totalCredits;
     };
 
-    // --- GPA 계산 함수==> 단순평균계산함수로 변경 --- //
-    const calculateGPA = () => {
-        let totalPoints = 0;
-        let count = 0;
+    // --- GPA 계산 함수 --- //
+        const calculateGPA = () => {
+        let totalGradePoints = 0;
+        let totalCreditsForGPA = 0;
 
         Object.values(subjects).forEach(subject => {
+            const credits = parseFloat(subject.credits);
             const grade = subject.grade;
 
-            if (grade !== 'NP' && grade !== 'P' && gradePointsMap.hasOwnProperty(grade)) {
-                totalPoints += gradePointsMap[grade];
-                count++;
+            //NP, P는 평점 계산에 포함하지 않음
+            if (grade !== 'NP' && grade !== 'P' && !isNaN(credits) && credits > 0) {
+                const gradePoint = gradePointsMap[grade];
+                if (gradePoint !== undefined) {
+                    totalGradePoints += (gradePoint * credits);
+                    totalCreditsForGPA += credits;
+                }
             }
         });
-    return count === 0 ? 0.00 : (totalPoints / count).toFixed(2);
+
+        if (totalCreditsForGPA === 0) {
+            return 0.00;
+        } else {
+            return (totalGradePoints / totalCreditsForGPA).toFixed(2);
+        }
     };
 
 
@@ -595,6 +605,66 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 requiredGPASpan.textContent = requiredGPA.toFixed(2); // 유효하지 않으면 이전 값으로 되돌림
             }
+        });
+    }
+
+    // --- 엑셀 파일 처리 로직 --- //
+    const excelUploadBtn = document.getElementById('excel-upload-btn');
+    const excelFileInput = document.getElementById('excel-file-input');
+
+    if (excelUploadBtn && excelFileInput) {
+        excelUploadBtn.addEventListener('click', () => {
+            excelFileInput.click();
+        });
+
+        excelFileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                    // 업로드 시 기존에 있던 빈 행이 있다면 제거
+                    const initialSubjectIds = Object.keys(subjects);
+                    if (initialSubjectIds.length === 1) {
+                        const firstSubject = subjects[initialSubjectIds[0]];
+                        if (firstSubject.name === '' && firstSubject.credits === '' && firstSubject.grade === '') {
+                            delete subjects[initialSubjectIds[0]];
+                        }
+                    }
+
+                    jsonData.forEach(row => {
+                        const subjectName = row['교과목명'];
+                        const credits = row['학점'];
+                        const grade = row['등급']; // 사용자가 '성적' 대신 '등급'이라고 알려줌
+
+                        if (subjectName && credits !== undefined && grade !== undefined) {
+                            const subjectId = `sub-${nextSubjectId++}`;
+                            subjects[subjectId] = {
+                                name: String(subjectName),
+                                credits: String(credits),
+                                grade: String(grade).toUpperCase().trim()
+                            };
+                        }
+                    });
+
+                    renderSubjects(); // 전체 과목 목록 다시 렌더링
+                    updateOverallDisplay();
+                    saveData();
+
+                } catch (error) {
+                    console.error("Error processing Excel file:", error);
+                    alert("엑셀 파일을 처리하는 중 오류가 발생했습니다. 파일이 암호화되어 있는지 확인해주세요.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            event.target.value = ''; // 동일한 파일을 다시 업로드할 수 있도록 입력 초기화
         });
     }
 });
