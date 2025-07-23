@@ -175,38 +175,29 @@ document.addEventListener('DOMContentLoaded', () => {
         let totalCredits = 0;
         Object.values(subjects).forEach(subject => {
             // F, NP를 제외한 과목의 학점만 합산
-            if (subject.grade !== 'F' && subject.grade !== 'NP' && !isNaN(parseFloat(subject.credits))) {
+            if (subject.grade !== 'NP' && !isNaN(parseFloat(subject.credits))) {
                 totalCredits += parseFloat(subject.credits);
             }
         });
         return totalCredits;
     };
 
-    // --- GPA 계산 함수 --- //
+    // --- GPA 계산 함수==> 단순평균계산함수로 변경 --- //
     const calculateGPA = () => {
-        let totalGradePoints = 0;
-        let totalCreditsForGPA = 0;
+        let totalPoints = 0;
+        let count = 0;
 
         Object.values(subjects).forEach(subject => {
-            const credits = parseFloat(subject.credits);
             const grade = subject.grade;
 
-            // F, NP, P는 평점 계산에 포함하지 않음
-            if (grade !== 'F' && grade !== 'NP' && grade !== 'P' && !isNaN(credits) && credits > 0) {
-                const gradePoint = gradePointsMap[grade];
-                if (gradePoint !== undefined) {
-                    totalGradePoints += (gradePoint * credits);
-                    totalCreditsForGPA += credits;
-                }
+            if (grade !== 'NP' && grade !== 'P' && gradePointsMap.hasOwnProperty(grade)) {
+                totalPoints += gradePointsMap[grade];
+                count++;
             }
         });
-
-        if (totalCreditsForGPA === 0) {
-            return 0.00;
-        } else {
-            return (totalGradePoints / totalCreditsForGPA).toFixed(2);
-        }
+    return count === 0 ? 0.00 : (totalPoints / count).toFixed(2);
     };
+
 
     const updateOverallDisplay = () => {
         const currentTotalCreditsSpan = document.getElementById('current-total-credits');
@@ -277,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let currentCredits = 0;
         category.subjects.forEach(subjectId => {
             const subject = subjects[subjectId];
-            if (subject && subject.grade !== 'NP' && subject.grade !== 'F' && !isNaN(parseFloat(subject.credits))) {
+            if (subject && subject.grade !== 'NP' && !isNaN(parseFloat(subject.credits))) {
                 currentCredits += parseFloat(subject.credits);
             }
         });
