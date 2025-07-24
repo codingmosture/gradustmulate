@@ -1,4 +1,26 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- CSS for Drag & Drop Visual Feedback ---
+    const style = document.createElement('style');
+    style.textContent = `
+        .dragging {
+            opacity: 0.4;
+        }
+        .drag-over-top {
+            border-top: 1px solid #ccc;
+        }
+        .drag-over-bottom {
+            border-bottom: 1px solid #ccc;
+        }
+        /* 테이블 행에 대한 스타일 */
+        tr.drag-over-top > td {
+            box-shadow: inset 0 1px 0 0 #ccc;
+        }
+        tr.drag-over-bottom > td {
+            box-shadow: inset 0 -1px 0 0 #ccc;
+        }
+    `;
+    document.head.append(style);
+
     // --- DOM Elements ---
     const DOMElements = {
         subjectListTableBody: document.getElementById('subject-list'),
@@ -11,544 +33,342 @@ document.addEventListener('DOMContentLoaded', () => {
         gpaDisplaySpan: document.getElementById('gpa-display'),
         requiredGPASpan: document.getElementById('required-gpa'),
         excelUploadBtn: document.getElementById('excel-upload-btn'),
-        excelFileInput: document.getElementById('excel-file-input')
+        excelFileInput: document.getElementById('excel-file-input'),
     };
 
     // --- Data Management ---
-    let subjects = {}; // { id: { name, credits, grade } }
-    let categories = {}; // { id: { name, requiredCredits, subjects: [subjectId, ...] } }
-    let nextSubjectId = 1;
-    let nextCategoryId = 1;
-    let requiredTotalCredits = 130; // 졸업 요구 학점 초기값
-    let requiredGPA = 2.00; // 졸업 요구 평균 평점 초기값
+    let state = {
+        subjects: {}, categories: {}, nextSubjectId: 1, nextCategoryId: 1,
+        requiredTotalCredits: 130, requiredGPA: 2.0,
+    };
 
     const gradePointsMap = {
-        'A+': 4.5, 'A0': 4.0, 'B+': 3.5, 'B0': 3.0,
-        'C+': 2.5, 'C0': 2.0, 'D+': 1.5, 'D0': 1.0,
-        'F': 0.0, 'P': 0.0, 'NP': 0.0
+        'A+': 4.5, 'A0': 4.0, 'B+': 3.5, 'B0': 3.0, 'C+': 2.5, 'C0': 2.0,
+        'D+': 1.5, 'D0': 1.0, 'F': 0.0, 'P': 0.0, 'NP': 0.0,
     };
 
-    // --- Utility Functions ---
-    const saveData = () => {
-        localStorage.setItem('subjects', JSON.stringify(subjects));
-        localStorage.setItem('categories', JSON.stringify(categories));
-        localStorage.setItem('nextSubjectId', nextSubjectId);
-        localStorage.setItem('nextCategoryId', nextCategoryId);
-        localStorage.setItem('requiredTotalCredits', requiredTotalCredits);
-        localStorage.setItem('requiredGPA', requiredGPA);
-    };
-
+    // --- Utility & Data Persistence ---
+    const saveData = () => localStorage.setItem('gradeManagerData', JSON.stringify(state));
     const loadData = () => {
-        const savedSubjects = localStorage.getItem('subjects');
-        const savedCategories = localStorage.getItem('categories');
-        const savedNextSubjectId = localStorage.getItem('nextSubjectId');
-        const savedNextCategoryId = localStorage.getItem('nextCategoryId');
-        const savedRequiredTotalCredits = localStorage.getItem('requiredTotalCredits');
-        const savedRequiredGPA = localStorage.getItem('requiredGPA');
-
-        if (savedSubjects) subjects = JSON.parse(savedSubjects);
-        if (savedCategories) categories = JSON.parse(savedCategories);
-        if (savedNextSubjectId) nextSubjectId = parseInt(savedNextSubjectId);
-        if (savedNextCategoryId) nextCategoryId = parseInt(savedNextCategoryId);
-        if (savedRequiredTotalCredits) requiredTotalCredits = parseFloat(savedRequiredTotalCredits);
-        if (savedRequiredGPA) requiredGPA = parseFloat(savedRequiredGPA);
-
-        renderSubjects();
-        renderCategories();
+        const savedData = localStorage.getItem('gradeManagerData');
+        if (savedData) state = JSON.parse(savedData);
     };
 
-    const calculateTotalCredits = () => {
-        let totalCredits = 0;
-        Object.values(subjects).forEach(subject => {
-            if (subject.grade !== 'NP' && !isNaN(parseFloat(subject.credits))) {
-                totalCredits += parseFloat(subject.credits);
-            }
-        });
-        return totalCredits;
-    };
+    // --- Calculation Functions ---
+    const calculateTotalCredits = () => Object.values(state.subjects).reduce((total, { credits, grade }) =>
+        grade !== 'NP' && !isNaN(parseFloat(credits)) ? total + parseFloat(credits) : total, 0);
 
     const calculateGPA = () => {
-        let totalGradePoints = 0;
-        let totalCreditsForGPA = 0;
-
-        Object.values(subjects).forEach(subject => {
+        let totalGradePoints = 0, totalCreditsForGPA = 0;
+        Object.values(state.subjects).forEach(subject => {
             const credits = parseFloat(subject.credits);
-            const grade = subject.grade;
-
-            if (grade !== 'NP' && grade !== 'P' && !isNaN(credits) && credits > 0) {
-                const gradePoint = gradePointsMap[grade];
-                if (gradePoint !== undefined) {
-                    totalGradePoints += (gradePoint * credits);
-                    totalCreditsForGPA += credits;
-                }
+            if (subject.grade !== 'NP' && subject.grade !== 'P' && !isNaN(credits) && credits > 0) {
+                totalGradePoints += (gradePointsMap[subject.grade] || 0) * credits;
+                totalCreditsForGPA += credits;
             }
         });
-
-        return totalCreditsForGPA === 0 ? 0.00 : (totalGradePoints / totalCreditsForGPA).toFixed(2);
+        return totalCreditsForGPA === 0 ? 0.00 : (totalGradePoints / totalCreditsForGPA);
     };
 
-    const updateOverallDisplay = () => {
-        const { currentTotalCreditsSpan, requiredTotalCreditsSpan, gpaDisplaySpan, requiredGPASpan } = DOMElements;
-
-        const currentCredits = calculateTotalCredits();
-        currentTotalCreditsSpan.textContent = currentCredits;
-        currentTotalCreditsSpan.classList.toggle('insufficient', currentCredits < requiredTotalCredits);
-        currentTotalCreditsSpan.classList.toggle('sufficient', currentCredits >= requiredTotalCredits);
-
-        requiredTotalCreditsSpan.textContent = requiredTotalCredits;
-
-        const currentGPA = parseFloat(calculateGPA());
-        gpaDisplaySpan.textContent = currentGPA.toFixed(2);
-        gpaDisplaySpan.classList.toggle('insufficient', currentGPA < requiredGPA);
-        gpaDisplaySpan.classList.toggle('sufficient', currentGPA >= requiredGPA);
-
-        requiredGPASpan.textContent = requiredGPA.toFixed(2);
-        saveData();
-    };
-
-    const removeSubject = (subjectId) => {
-        delete subjects[subjectId];
-        const subjectRow = DOMElements.subjectListTableBody.querySelector(`[data-subject-id="${subjectId}"]`);
-        if (subjectRow) subjectRow.remove();
-
-        Object.keys(categories).forEach(categoryId => {
-            removeSubjectFromCategory(subjectId, categoryId, true);
-        });
+    // --- Rendering Engine ---
+    const render = () => {
+        renderSubjects();
+        renderCategories();
         updateOverallDisplay();
         saveData();
     };
 
-    const removeCategory = (categoryId) => {
-        delete categories[categoryId];
-        const categoryBox = document.querySelector(`[data-category-id="${categoryId}"]`);
-        if (categoryBox) categoryBox.remove();
-        saveData();
-    };
-
-    const updateCategoryCredits = (categoryId) => {
-        const category = categories[categoryId];
-        const categoryBox = document.querySelector(`[data-category-id="${categoryId}"]`);
-        if (!category || !categoryBox) return;
-
-        let currentCredits = 0;
-        category.subjects.forEach(subjectId => {
-            const subject = subjects[subjectId];
-            if (subject && subject.grade !== 'NP' && !isNaN(parseFloat(subject.credits))) {
-                currentCredits += parseFloat(subject.credits);
-            }
-        });
-
-        const currentCreditsSpan = categoryBox.querySelector('.current-credits');
-        currentCreditsSpan.textContent = currentCredits;
-        currentCreditsSpan.classList.toggle('insufficient', currentCredits < category.requiredCredits);
-        currentCreditsSpan.classList.toggle('sufficient', currentCredits >= category.requiredCredits);
-        saveData();
-    };
-
-    const updateCategoriesWithSubject = (subjectId) => {
-        Object.keys(categories).forEach(categoryId => {
-            if (categories[categoryId].subjects.includes(subjectId)) {
-                const subjectItem = document.querySelector(`[data-category-id="${categoryId}"] [data-subject-id="${subjectId}"]`);
-                if (subjectItem) {
-                    const subject = subjects[subjectId];
-                    subjectItem.querySelector('span').textContent = `${subject.name} (${subject.credits}학점, ${subject.grade})`;
-                }
-                updateCategoryCredits(categoryId);
-            }
-        });
-        saveData();
-    };
-
-    const removeSubjectFromCategory = (subjectId, categoryId, updateDOM = true) => {
-        const category = categories[categoryId];
-        if (category && category.subjects.includes(subjectId)) {
-            category.subjects = category.subjects.filter(id => id !== subjectId);
-            if (updateDOM) {
-                const subjectItem = document.querySelector(`[data-category-id="${categoryId}"] [data-subject-id="${subjectId}"]`);
-                if (subjectItem) subjectItem.remove();
-            }
-            updateCategoryCredits(categoryId);
-            saveData();
-        }
-    };
-
-    // --- HTML Generation Functions ---
-    const createSubjectRowHTML = (subject, subjectId) => `
-        <td contenteditable="true" spellcheck="false">${subject.name}</td>
-        <td contenteditable="true" spellcheck="false">${subject.credits}</td>
-        <td>
-            <select class="grade-select" spellcheck="false">
-                <option value=""></option>
-                <option value="A+">A+</option>
-                <option value="A0">A0</option>
-                <option value="B+">B+</option>
-                <option value="B0">B0</option>
-                <option value="C+">C+</option>
-                <option value="C0">C0</option>
-                <option value="D+">D+</option>
-                <option value="D0">D0</option>
-                <option value="F">F</option>
-                <option value="P">P</option>
-                <option value="NP">NP</option>
-            </select>
-        </td>
-    `;
-
-    const createCategoryBoxHTML = (category, categoryId) => `
-        <span class="remove-category-btn">&times;</span>
-        <div class="category-header">
-            <span class="category-name" contenteditable="true" spellcheck="false">${category.name}</span>
-            <span class="credits-info">
-                (<span class="current-credits insufficient">0</span> /
-                <span class="required-credits" contenteditable="true" spellcheck="false">${category.requiredCredits}</span> 학점)
-            </span>
-        </div>
-    `;
-
-    const createSubjectItemHTML = (subject, subjectId) => `
-        <span>${subject.name} (${subject.credits}학점, ${subject.grade})</span>
-        <span class="remove-subject-btn">&times;</span>
-    `;
-
-    // --- Event Listener Attachment Functions ---
-    const attachSubjectRowEventListeners = (row, subjectId) => {
-        row.setAttribute('draggable', 'true');
-
-        Array.from(row.cells).forEach((cell, index) => {
-            if (index === 0) { // Subject Name
-                cell.addEventListener('blur', () => {
-                    subjects[subjectId].name = cell.textContent.trim();
-                    updateCategoriesWithSubject(subjectId);
-                    updateOverallDisplay();
-                });
-            } else if (index === 1) { // Credits
-                cell.addEventListener('blur', () => {
-                    let credits = cell.textContent.trim();
-                    if (isNaN(parseFloat(credits)) || !isFinite(credits)) {
-                        credits = '';
-                        cell.textContent = '';
-                    }
-                    subjects[subjectId].credits = credits;
-                    updateCategoriesWithSubject(subjectId);
-                    updateOverallDisplay();
-                });
-            } else if (index === 2) { // Grade Select
-                const gradeSelect = cell.querySelector('.grade-select');
-                if (gradeSelect) {
-                    gradeSelect.addEventListener('change', () => {
-                        subjects[subjectId].grade = gradeSelect.value;
-                        updateCategoriesWithSubject(subjectId);
-                        updateOverallDisplay();
-                    });
-                }
-            }
-        });
-    };
-
-    const attachCategoryBoxEventListeners = (categoryBox, categoryId) => {
-        categoryBox.querySelector('.remove-category-btn').addEventListener('click', () => removeCategory(categoryId));
-        const nameSpan = categoryBox.querySelector('.category-name');
-        const creditsSpan = categoryBox.querySelector('.required-credits');
-
-        nameSpan.addEventListener('blur', () => {
-            categories[categoryId].name = nameSpan.textContent.trim();
-            saveData();
-        });
-
-        creditsSpan.addEventListener('blur', () => {
-            const newCredits = parseInt(creditsSpan.textContent.trim(), 10);
-            if (!isNaN(newCredits)) {
-                categories[categoryId].requiredCredits = newCredits;
-                updateCategoryCredits(categoryId);
-                saveData();
-            } else {
-                creditsSpan.textContent = categories[categoryId].requiredCredits;
-            }
-        });
-    };
-
-    // --- Rendering Functions ---
     const renderSubjects = () => {
-        DOMElements.subjectListTableBody.innerHTML = '';
-        Object.keys(subjects).sort((a, b) => parseInt(a.replace('sub-', '')) - parseInt(b.replace('sub-', '')))
-            .forEach(subjectId => {
-                const subject = subjects[subjectId];
-                const newRow = DOMElements.subjectListTableBody.insertRow();
-                newRow.dataset.subjectId = subjectId;
-                newRow.innerHTML = createSubjectRowHTML(subject, subjectId);
-
-                const gradeSelect = newRow.querySelector('.grade-select');
-                if (subject.grade) gradeSelect.value = subject.grade;
-
-                const actionsDiv = document.createElement('div');
-                actionsDiv.className = 'subject-row-actions';
-                const removeBtn = document.createElement('span');
-                removeBtn.className = 'remove-main-subject-btn';
-                removeBtn.innerHTML = '&times;';
-                removeBtn.addEventListener('click', () => removeSubject(subjectId));
-                actionsDiv.appendChild(removeBtn);
-                newRow.appendChild(actionsDiv);
-
-                attachSubjectRowEventListeners(newRow, subjectId);
-            });
+        DOMElements.subjectListTableBody.innerHTML = Object.keys(state.subjects).map(id => {
+            const subject = state.subjects[id];
+            const gradeOptions = Object.keys(gradePointsMap).map(grade =>
+                `<option value="${grade}" ${subject.grade === grade ? 'selected' : ''}>${grade}</option>`
+            ).join('');
+            return `
+                <tr data-subject-id="${id}" draggable="true">
+                    <td contenteditable="true" spellcheck="false">${subject.name}</td>
+                    <td contenteditable="true" spellcheck="false">${subject.credits}</td>
+                    <td><select class="grade-select"><option value=""></option>${gradeOptions}</select></td>
+                    <td class="actions-cell"><span class="remove-main-subject-btn">×</span></td>
+                </tr>`;
+        }).join('');
     };
 
     const renderCategories = () => {
-        DOMElements.categoryContainer.innerHTML = '';
-        Object.keys(categories).sort((a, b) => parseInt(a.replace('cat-', '')) - parseInt(b.replace('cat-', '')))
-            .forEach(categoryId => {
-                const category = categories[categoryId];
-                const categoryBox = document.createElement('div');
-                categoryBox.className = 'category-box';
-                categoryBox.dataset.categoryId = categoryId;
-                categoryBox.innerHTML = createCategoryBoxHTML(category, categoryId);
-                DOMElements.categoryContainer.appendChild(categoryBox);
-
-                attachCategoryBoxEventListeners(categoryBox, categoryId);
-
-                category.subjects.forEach(subjectId => {
-                    createSubjectItemInCategory(subjectId, categoryId);
-                });
-                updateCategoryCredits(categoryId);
-            });
+        DOMElements.categoryContainer.innerHTML = Object.keys(state.categories).map(id => {
+            const category = state.categories[id];
+            let currentCredits = 0;
+            const subjectItemsHTML = category.subjects.map(subjectId => {
+                const subject = state.subjects[subjectId];
+                if (!subject) return '';
+                if (subject.grade !== 'NP' && !isNaN(parseFloat(subject.credits))) currentCredits += parseFloat(subject.credits);
+                return `
+                    <div class="subject-item" data-subject-id="${subjectId}" data-from-category="${id}" draggable="true">
+                        <span>${subject.name} (${subject.credits}학점, ${subject.grade})</span>
+                        <span class="remove-subject-btn">×</span>
+                    </div>`;
+            }).join('');
+            const requiredCreditsMet = currentCredits >= category.requiredCredits;
+            return `
+                <div class="category-box" data-category-id="${id}">
+                    <span class="remove-category-btn">×</span>
+                    <div class="category-header">
+                        <span class="category-name" contenteditable="true" spellcheck="false">${category.name}</span>
+                        <span class="credits-info">
+                            (<span class="current-credits ${requiredCreditsMet ? 'sufficient' : 'insufficient'}">${currentCredits}</span> /
+                            <span class="required-credits" contenteditable="true" spellcheck="false">${category.requiredCredits}</span> 학점)
+                        </span>
+                    </div>
+                    ${subjectItemsHTML}
+                </div>`;
+        }).join('');
     };
 
-    const createNewSubjectRow = (subjectData = { name: '', credits: '', grade: '' }, subjectId = `sub-${nextSubjectId++}`) => {
-        const newRow = DOMElements.subjectListTableBody.insertRow();
-        newRow.dataset.subjectId = subjectId;
-        newRow.innerHTML = createSubjectRowHTML(subjectData, subjectId);
-
-        const gradeSelect = newRow.querySelector('.grade-select');
-        if (subjectData.grade) gradeSelect.value = subjectData.grade;
-
-        const actionsDiv = document.createElement('div');
-        actionsDiv.className = 'subject-row-actions';
-        const removeBtn = document.createElement('span');
-        removeBtn.className = 'remove-main-subject-btn';
-        removeBtn.innerHTML = '&times;';
-        removeBtn.addEventListener('click', () => removeSubject(subjectId));
-        actionsDiv.appendChild(removeBtn);
-        newRow.appendChild(actionsDiv);
-
-        subjects[subjectId] = subjectData;
-        attachSubjectRowEventListeners(newRow, subjectId);
-        newRow.cells[0].focus();
-        updateOverallDisplay();
-        saveData();
+    const updateOverallDisplay = () => {
+        const currentCredits = calculateTotalCredits(), currentGPA = calculateGPA();
+        Object.assign(DOMElements.currentTotalCreditsSpan, { textContent: currentCredits, className: currentCredits >= state.requiredTotalCredits ? 'sufficient' : 'insufficient' });
+        DOMElements.requiredTotalCreditsSpan.textContent = state.requiredTotalCredits;
+        Object.assign(DOMElements.gpaDisplaySpan, { textContent: currentGPA.toFixed(2), className: currentGPA >= state.requiredGPA ? 'sufficient' : 'insufficient' });
+        DOMElements.requiredGPASpan.textContent = state.requiredGPA.toFixed(2);
     };
 
-    const createSubjectItemInCategory = (subjectId, categoryId) => {
-        const subject = subjects[subjectId];
-        const categoryBox = document.querySelector(`[data-category-id="${categoryId}"]`);
-        if (!subject || !categoryBox) return;
-
-        const subjectItem = document.createElement('div');
-        subjectItem.className = 'subject-item';
-        subjectItem.dataset.subjectId = subjectId;
-        subjectItem.dataset.fromCategory = categoryId;
-        subjectItem.setAttribute('draggable', 'true');
-        subjectItem.innerHTML = createSubjectItemHTML(subject, subjectId);
-        
-        subjectItem.querySelector('.remove-subject-btn').addEventListener('click', () => {
-            removeSubjectFromCategory(subjectId, categoryId);
-        });
-
-        categoryBox.appendChild(subjectItem);
-        saveData();
+    // --- Action Handlers ---
+    const addSubject = (data = { name: '', credits: '', grade: '' }) => {
+        const id = `sub-${state.nextSubjectId++}`;
+        state.subjects[id] = data;
+        render();
+        const newRow = DOMElements.subjectListTableBody.querySelector(`[data-subject-id="${id}"]`);
+        if(newRow) newRow.cells[0].focus();
+    };
+    
+    const removeSubject = (subjectId) => {
+        delete state.subjects[subjectId];
+        Object.values(state.categories).forEach(cat => { cat.subjects = cat.subjects.filter(id => id !== subjectId); });
+        render();
     };
 
-    // --- Event Listeners ---
-    DOMElements.subjectListTableBody.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            const currentCell = event.target;
-            const currentRow = currentCell.parentElement;
-            if (currentCell.cellIndex < 2) {
-                 currentRow.cells[currentCell.cellIndex + 1].focus();
-            } else if (currentCell.cellIndex === 2) {
-                currentRow.cells[0].focus();
-            }
+    const addCategory = () => {
+        const id = `cat-${state.nextCategoryId++}`;
+        state.categories[id] = { name: '새 카테고리', requiredCredits: 15, subjects: [] };
+        render();
+    };
+
+    const removeCategory = (categoryId) => {
+        delete state.categories[categoryId];
+        render();
+    };
+    
+    const removeSubjectFromCategory = (subjectId, categoryId) => {
+        if (state.categories[categoryId]) {
+            state.categories[categoryId].subjects = state.categories[categoryId].subjects.filter(id => id !== subjectId);
+            render();
+        }
+    };
+    
+    // --- Event Listeners (Delegated) ---
+    DOMElements.subjectListTableBody.addEventListener('click', e => {
+        if (e.target.matches('.remove-main-subject-btn')) removeSubject(e.target.closest('tr').dataset.subjectId);
+    });
+
+    DOMElements.subjectListTableBody.addEventListener('change', e => {
+        if (e.target.matches('.grade-select')) {
+            state.subjects[e.target.closest('tr').dataset.subjectId].grade = e.target.value;
+            render();
         }
     });
 
-    let draggedRow = null;
-
-    DOMElements.subjectListTableBody.addEventListener('dragstart', (e) => {
-        draggedRow = e.target.closest('tr');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', draggedRow.dataset.subjectId);
-    });
-
-    DOMElements.subjectListTableBody.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        const targetRow = e.target.closest('tr');
-        if (targetRow && targetRow !== draggedRow) {
-            const boundingBox = targetRow.getBoundingClientRect();
-            const offset = boundingBox.y + (boundingBox.height / 2);
-            if (e.clientY < offset) {
-                DOMElements.subjectListTableBody.insertBefore(draggedRow, targetRow);
-            } else {
-                DOMElements.subjectListTableBody.insertBefore(draggedRow, targetRow.nextSibling);
-            }
+    DOMElements.subjectListTableBody.addEventListener('blur', e => {
+        if (e.target.matches('[contenteditable]')) {
+            const { subjectId } = e.target.closest('tr').dataset;
+            const field = e.target.cellIndex === 0 ? 'name' : 'credits';
+            const value = e.target.textContent.trim();
+            state.subjects[subjectId][field] = field === 'credits' && isNaN(parseFloat(value)) ? '' : value;
+            render();
         }
+    }, true);
+    
+    DOMElements.categoryContainer.addEventListener('click', e => {
+        const categoryBox = e.target.closest('.category-box');
+        if (!categoryBox) return;
+        if (e.target.matches('.remove-category-btn')) removeCategory(categoryBox.dataset.categoryId);
+        if (e.target.matches('.remove-subject-btn')) removeSubjectFromCategory(e.target.closest('.subject-item').dataset.subjectId, categoryBox.dataset.categoryId);
     });
 
-    DOMElements.subjectListTableBody.addEventListener('dragend', () => {
-        draggedRow = null;
-        const newSubjectOrder = {};
-        Array.from(DOMElements.subjectListTableBody.children).forEach(row => {
-            const subjectId = row.dataset.subjectId;
-            newSubjectOrder[subjectId] = subjects[subjectId];
-        });
-        subjects = newSubjectOrder;
-        saveData();
-    });
+    DOMElements.categoryContainer.addEventListener('blur', e => {
+        if (e.target.matches('[contenteditable]')) {
+            const { categoryId } = e.target.closest('.category-box').dataset;
+            const value = e.target.textContent.trim();
+            if (e.target.matches('.category-name')) state.categories[categoryId].name = value;
+            else if (e.target.matches('.required-credits')) state.categories[categoryId].requiredCredits = isNaN(parseInt(value, 10)) ? state.categories[categoryId].requiredCredits : parseInt(value, 10);
+            render();
+        }
+    }, true);
 
-    DOMElements.addSubjectBtn.addEventListener('click', () => createNewSubjectRow());
+    // --- Drag and Drop Handlers ---
+    let draggedElement = null;
 
-    DOMElements.addCategoryBtn.addEventListener('click', () => {
-        const categoryId = `cat-${nextCategoryId++}`;
-        const categoryBox = document.createElement('div');
-        categoryBox.className = 'category-box';
-        categoryBox.dataset.categoryId = categoryId;
-        categoryBox.innerHTML = createCategoryBoxHTML({ name: '새 카테고리', requiredCredits: 15 }, categoryId);
-        DOMElements.categoryContainer.appendChild(categoryBox);
-        categories[categoryId] = { name: '새 카테고리', requiredCredits: 15, subjects: [] };
-        saveData();
-
-        attachCategoryBoxEventListeners(categoryBox, categoryId);
-    });
-
-    document.addEventListener('dragstart', (e) => {
-        if (e.target.classList.contains('subject-item')) {
+    document.addEventListener('dragstart', e => {
+        if (e.target.matches('[draggable="true"]')) {
+            draggedElement = e.target;
+            e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', e.target.dataset.subjectId);
-            e.dataTransfer.setData('from-category', e.target.dataset.fromCategory);
-            e.dataTransfer.effectAllowed = 'copy';
+            if (e.target.dataset.fromCategory) e.dataTransfer.setData('from-category', e.target.dataset.fromCategory);
+            setTimeout(() => draggedElement.classList.add('dragging'), 0);
         }
     });
 
-    DOMElements.categoryContainer.addEventListener('dragover', (e) => e.preventDefault());
-    DOMElements.categoryContainer.addEventListener('drop', (e) => {
+    let lastDragOverTarget = null;
+    document.addEventListener('dragover', e => {
         e.preventDefault();
-        const subjectId = e.dataTransfer.getData('text/plain');
-        const fromCategoryId = e.dataTransfer.getData('from-category');
-        const targetCategoryBox = e.target.closest('.category-box');
-
-        if (!subjectId) return;
-
-        if (targetCategoryBox) {
-            const toCategoryId = targetCategoryBox.dataset.categoryId;
-            if (fromCategoryId && fromCategoryId !== toCategoryId) {
-                removeSubjectFromCategory(subjectId, fromCategoryId);
-            }
-            const category = categories[toCategoryId];
-            if (!category.subjects.includes(subjectId)) {
-                category.subjects.push(subjectId);
-                createSubjectItemInCategory(subjectId, toCategoryId);
-                updateCategoryCredits(toCategoryId);
-                saveData();
-            }
+        const target = e.target.closest('.subject-item, tr[data-subject-id]');
+        if (lastDragOverTarget && lastDragOverTarget !== target) {
+            lastDragOverTarget.classList.remove('drag-over-top', 'drag-over-bottom');
+        }
+        if (target && target !== draggedElement) {
+            const rect = target.getBoundingClientRect();
+            const isTopHalf = e.clientY < rect.top + rect.height / 2;
+            target.classList.toggle('drag-over-top', isTopHalf);
+            target.classList.toggle('drag-over-bottom', !isTopHalf);
+            lastDragOverTarget = target;
         }
     });
     
-    DOMElements.leftPanel.addEventListener('dragover', e => e.preventDefault());
-    DOMElements.leftPanel.addEventListener('drop', e => {
+    document.addEventListener('dragleave', e => {
+        const target = e.target.closest('.subject-item, tr[data-subject-id]');
+        if(target) target.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+
+    document.addEventListener('drop', e => {
         e.preventDefault();
-        if (!e.target.closest('#category-container')) {
-            const subjectId = e.dataTransfer.getData('text/plain');
-            const fromCategoryId = e.dataTransfer.getData('from-category');
-            if (subjectId && fromCategoryId) {
-                removeSubjectFromCategory(subjectId, fromCategoryId);
-                saveData();
+        if (!draggedElement) return;
+
+        const subjectId = e.dataTransfer.getData('text/plain');
+        if (!subjectId) return;
+
+        const fromCategoryId = e.dataTransfer.getData('from-category');
+        const targetElement = e.target.closest('.subject-item, .category-box, tr[data-subject-id]');
+
+        // Reordering within main subject list
+        if (draggedElement.matches('tr') && targetElement && targetElement.matches('tr')) {
+            const targetId = targetElement.dataset.subjectId;
+            if (subjectId !== targetId) {
+                const currentIds = Object.keys(state.subjects);
+                currentIds.splice(currentIds.indexOf(subjectId), 1);
+                const targetIndex = currentIds.indexOf(targetId);
+                const rect = targetElement.getBoundingClientRect();
+                const insertBefore = e.clientY < rect.top + rect.height / 2;
+                currentIds.splice(insertBefore ? targetIndex : targetIndex + 1, 0, subjectId);
+                
+                const newSubjectsOrder = {};
+                currentIds.forEach(id => { newSubjectsOrder[id] = state.subjects[id]; });
+                state.subjects = newSubjectsOrder;
+                render();
             }
+            return;
+        }
+
+        // Reordering within the same category
+        if (draggedElement.matches('.subject-item') && targetElement && targetElement.matches('.subject-item')) {
+            const toCategoryId = targetElement.closest('.category-box').dataset.categoryId;
+            if (fromCategoryId === toCategoryId) {
+                const subjectIds = state.categories[fromCategoryId].subjects;
+                const targetId = targetElement.dataset.subjectId;
+                subjectIds.splice(subjectIds.indexOf(subjectId), 1);
+                const targetIndex = subjectIds.indexOf(targetId);
+                const rect = targetElement.getBoundingClientRect();
+                const insertBefore = e.clientY < rect.top + rect.height / 2;
+                subjectIds.splice(insertBefore ? targetIndex : targetIndex + 1, 0, subjectId);
+                render();
+                return;
+            }
+        }
+
+        // Dropping into a category
+        const targetCategoryBox = e.target.closest('.category-box');
+        if (targetCategoryBox) {
+            const toCategoryId = targetCategoryBox.dataset.categoryId;
+            if (fromCategoryId && fromCategoryId !== toCategoryId) {
+                state.categories[fromCategoryId].subjects = state.categories[fromCategoryId].subjects.filter(id => id !== subjectId);
+            }
+            if (!state.categories[toCategoryId].subjects.includes(subjectId)) {
+                const subjectIds = state.categories[toCategoryId].subjects;
+                const targetSubject = e.target.closest('.subject-item');
+                if(targetSubject){ // drop onto a subject inside the category
+                    const targetId = targetSubject.dataset.subjectId;
+                    const targetIndex = subjectIds.indexOf(targetId);
+                    const rect = targetSubject.getBoundingClientRect();
+                    const insertBefore = e.clientY < rect.top + rect.height / 2;
+                    subjectIds.splice(insertBefore ? targetIndex : targetIndex + 1, 0, subjectId);
+                } else { // drop onto the category box itself
+                    subjectIds.push(subjectId);
+                }
+            }
+            render();
+            return;
+        }
+
+        // Dropping outside a category to remove
+        if (fromCategoryId && !targetCategoryBox) {
+            removeSubjectFromCategory(subjectId, fromCategoryId);
         }
     });
 
-    // --- Initialization ---
-    loadData();
+    document.addEventListener('dragend', () => {
+        if(draggedElement) draggedElement.classList.remove('dragging');
+        if(lastDragOverTarget) lastDragOverTarget.classList.remove('drag-over-top', 'drag-over-bottom');
+        draggedElement = null;
+        lastDragOverTarget = null;
+    });
 
-    if (Object.keys(subjects).length === 0) {
-        createNewSubjectRow();
-    }
-    updateOverallDisplay();
-
-    if (DOMElements.requiredTotalCreditsSpan) {
-        DOMElements.requiredTotalCreditsSpan.addEventListener('blur', () => {
-            const newRequiredCredits = parseInt(DOMElements.requiredTotalCreditsSpan.textContent.trim(), 10);
-            if (!isNaN(newRequiredCredits)) {
-                requiredTotalCredits = newRequiredCredits;
-                updateOverallDisplay();
-            } else {
-                DOMElements.requiredTotalCreditsSpan.textContent = requiredTotalCredits;
-            }
+    // --- Global Settings & Excel Processing ---
+    [DOMElements.requiredTotalCreditsSpan, DOMElements.requiredGPASpan].forEach(el => {
+        el.setAttribute('contenteditable', 'true');
+        el.addEventListener('blur', () => {
+            const value = el.textContent.trim();
+            if (el.id === 'required-total-credits') state.requiredTotalCredits = isNaN(parseInt(value, 10)) ? state.requiredTotalCredits : parseInt(value, 10);
+            else if (el.id === 'required-gpa') state.requiredGPA = isNaN(parseFloat(value)) ? state.requiredGPA : parseFloat(value);
+            render();
         });
-    }
+    });
 
-    if (DOMElements.requiredGPASpan) {
-        DOMElements.requiredGPASpan.addEventListener('blur', () => {
-            const newRequiredGPA = parseFloat(DOMElements.requiredGPASpan.textContent.trim());
-            if (!isNaN(newRequiredGPA)) {
-                requiredGPA = newRequiredGPA;
-                updateOverallDisplay();
-            } else {
-                DOMElements.requiredGPASpan.textContent = requiredGPA.toFixed(2);
-            }
-        });
-    }
-
-    // --- Excel File Processing Logic ---
-    if (DOMElements.excelUploadBtn && DOMElements.excelFileInput) {
-        DOMElements.excelUploadBtn.addEventListener('click', () => {
-            DOMElements.excelFileInput.click();
-        });
-
-        DOMElements.excelFileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = new Uint8Array(e.target.result);
-                    const workbook = XLSX.read(data, { type: 'array' });
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
-                    const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-                    const initialSubjectIds = Object.keys(subjects);
-                    if (initialSubjectIds.length === 1) {
-                        const firstSubject = subjects[initialSubjectIds[0]];
-                        if (firstSubject.name === '' && firstSubject.credits === '' && firstSubject.grade === '') {
-                            delete subjects[initialSubjectIds[0]];
-                        }
-                    }
-
-                    jsonData.forEach(row => {
-                        const subjectName = row['교과목명'];
-                        const credits = row['학점'];
-                        const grade = row['등급'];
-
-                        if (subjectName && credits !== undefined && grade !== undefined) {
-                            const subjectId = `sub-${nextSubjectId++}`;
-                            subjects[subjectId] = {
-                                name: String(subjectName),
-                                credits: String(credits),
-                                grade: String(grade).toUpperCase().trim()
-                            };
-                        }
-                    });
-
-                    renderSubjects();
-                    updateOverallDisplay();
-                    saveData();
-
-                } catch (error) {
-                    console.error("Error processing Excel file:", error);
-                    alert("엑셀 파일을 처리하는 중 오류가 발생했습니다. 파일이 암호화되어 있는지 확인해주세요.");
+    DOMElements.excelUploadBtn.addEventListener('click', () => DOMElements.excelFileInput.click());
+    DOMElements.excelFileInput.addEventListener('change', event => {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+                const initialIds = Object.keys(state.subjects);
+                if (initialIds.length === 1 && Object.values(state.subjects[initialIds[0]]).every(val => val === '')) {
+                    delete state.subjects[initialIds[0]];
                 }
-            };
-            reader.readAsArrayBuffer(file);
-            event.target.value = '';
-        });
+                jsonData.forEach(row => {
+                    if (row['교과목명'] && row['학점'] !== undefined && row['등급'] !== undefined) {
+                        const id = `sub-${state.nextSubjectId++}`;
+                        state.subjects[id] = { name: String(row['교과목명']), credits: String(row['학점']), grade: String(row['등급']).toUpperCase().trim() };
+                    }
+                });
+                render();
+            } catch (error) {
+                console.error("Error processing Excel file:", error);
+                alert("엑셀 파일을 처리하는 중 오류가 발생했습니다. 파일이 암호화되어 있는지 확인해주세요.");
+            }
+        };
+        reader.readAsArrayBuffer(file);
+        event.target.value = '';
+    });
+    
+    // --- Initialization ---
+    DOMElements.addSubjectBtn.addEventListener('click', () => addSubject());
+    DOMElements.addCategoryBtn.addEventListener('click', addCategory);
+
+    loadData();
+    if (Object.keys(state.subjects).length === 0) {
+        addSubject();
+    } else {
+        render();
     }
 });
