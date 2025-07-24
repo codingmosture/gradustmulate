@@ -5,18 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>졸업 메니지먼트</title>
     <style>
-        body {
+        html, body {
+            overflow: hidden;
+            width: 100%;
+            margin-right: 0;
+            margin-top: 0;
             font-family: sans-serif;
             display: flex;
             gap: 20px;
         }
-        html, body {
-            scrollbar-gutter: stable; /* 스크롤바 공간을 미리 확보해서 레이아웃 밀림 방지 */
+        ::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
         }
-
+        body {
+            /* Existing body styles */
+            display: flex;
+            gap: 20px;
+        }
         #left-panel, #right-panel {
             padding: 20px;
-            min-height: 90vh;
+            height: calc(100vh - 40px); /* 뷰포트 높이에서 상하 패딩을 뺀 값 */
+            scrollbar-gutter: stable;
+            overflow-y: auto; /* 내용이 넘칠 경우 스크롤바 표시 */
         }
         #left-panel {
             width: 61%;
@@ -26,7 +37,7 @@
             width: 39%;
         }
         h2 {
-            margin-top: 0;
+            margin-top: 15px;
         }
         #add-category-btn {
             padding: 0; /* 채우기 제거 */
@@ -49,8 +60,8 @@
             border: 1px solid #ddd;
             border-radius: 5px;
             padding: 10px;
-            min-width: 250px;
-            min-height: 150px;
+            min-width: 395px;
+            min-height: 250px;
             background-color: #f9f9f9;
             position: relative; /* 삭제 버튼 공간 확보 */
             margin-top: 10px; /* 삭제 버튼 공간 확보 */
